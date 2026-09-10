@@ -1,0 +1,6 @@
+{
+  "name": "Embee Software Page Builder",
+  "description": "The definitive landing page copy, SEO handover pack, and design direction builder for Embee Software solutions powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
