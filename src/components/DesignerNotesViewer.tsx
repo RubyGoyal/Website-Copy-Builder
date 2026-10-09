@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, Download, Palette, Eye, Code2 } from 'lucide-react';
+import { Copy, Check, Download, Palette, Eye, Code2, FileText } from 'lucide-react';
+import { downloadWordDoc } from '../utils/exportHelpers';
 
 interface DesignerNotesViewerProps {
   designerNotes: string;
@@ -34,6 +35,19 @@ export const DesignerNotesViewer: React.FC<DesignerNotesViewerProps> = ({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDoc = () => {
+    const slug = pillarName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    downloadWordDoc(
+      `designer-notes-${slug}.doc`,
+      `${pillarName} - In-House Designer Direction Notes`,
+      designerNotes,
+      {
+        pillar: pillarName,
+        type: 'In-House Designer Direction Notes'
+      }
+    );
   };
 
   return (
@@ -90,13 +104,25 @@ export const DesignerNotesViewer: React.FC<DesignerNotesViewerProps> = ({
             {copied ? 'Copied' : 'Copy Notes'}
           </button>
 
-          <button
-            onClick={handleDownload}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-xs transition"
-          >
-            <Download className="w-3.5 h-3.5" />
-            .md
-          </button>
+          {/* Download Buttons: .md and .doc */}
+          <div className="inline-flex rounded-md shadow-xs border border-slate-300 overflow-hidden">
+            <button
+              onClick={handleDownload}
+              title="Download as Markdown (.md)"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-800 border-r border-slate-300 transition"
+            >
+              <Download className="w-3.5 h-3.5" />
+              .md
+            </button>
+            <button
+              onClick={handleDownloadDoc}
+              title="Download as Word Document (.doc) with H1/H2 formatting"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 transition"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
+              .doc (Word)
+            </button>
+          </div>
         </div>
       </div>
 

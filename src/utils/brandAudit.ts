@@ -50,18 +50,7 @@ export function auditLandingPageCopy(text: string): AuditReport {
     });
   }
 
-  const connectorHyphenMatches = text.match(/\s+-\s+/g);
-  if (connectorHyphenMatches && connectorHyphenMatches.length > 0) {
-    violations.push({
-      rule: 'No Decorative Hyphen Connectors',
-      severity: 'warning',
-      description: `Found ${connectorHyphenMatches.length} space-hyphen-space (" - ") connectors. Use clean sentences or punctuation.`,
-      count: connectorHyphenMatches.length
-    });
-  }
-
   // 2. Brand Name: Always "Embee Software", never standalone "Embee"
-  // Exclude case study titles or headings if quoting past material, but detect standalone "Embee"
   const standaloneEmbeeRegex = /\bEmbee\b(?!\s+Software)/gi;
   const standaloneEmbee = text.match(standaloneEmbeeRegex);
   if (standaloneEmbee && standaloneEmbee.length > 0) {
@@ -119,7 +108,7 @@ export function auditLandingPageCopy(text: string): AuditReport {
     violations.push({
       rule: 'No Founding Year Allowed',
       severity: 'error',
-      description: 'Found founding year reference ("since 19xx"). Use "35+ years of experience" instead.',
+      description: 'Found founding year reference ("since 19xx"). Use "40+ years of experience" instead.',
       count: 1
     });
   }
@@ -145,14 +134,14 @@ export function auditLandingPageCopy(text: string): AuditReport {
     }
   }
 
-  // 8. H1 Check
-  const h1Matches = text.match(/^#\s+.+$/gm) || [];
+  // 8. H1 Check (matches "# Title" or "H1. Title")
+  const h1Matches = text.match(/^(?:#\s+|H1\.\s+).+$/gm) || [];
   const h1Count = h1Matches.length;
   if (h1Count === 0) {
     violations.push({
       rule: 'H1 Required',
       severity: 'error',
-      description: 'No H1 heading (# Heading) found on the page.',
+      description: 'No H1 heading (# Heading or H1. Heading) found on the page.',
       count: 1
     });
   } else if (h1Count > 1) {
@@ -164,39 +153,34 @@ export function auditLandingPageCopy(text: string): AuditReport {
     });
   }
 
-  // 9. Word Count Check (1,400 to 2,200 words)
-  if (wordCount < 1200) {
+  // 9. Word Count Check (Target: 1,000 to 1,350 words matching reference structure)
+  if (wordCount < 900) {
     violations.push({
       rule: 'Word Count Below Range',
       severity: 'warning',
-      description: `Word count is ${wordCount} words. Target length is 1,400 to 2,200 words for depth and authority.`,
+      description: `Word count is ${wordCount} words. Target length is 1,000 to 1,350 words matching the approved page structure.`,
       count: 1
     });
-  } else if (wordCount > 2500) {
+  } else if (wordCount > 1600) {
     violations.push({
       rule: 'Word Count Above Range',
       severity: 'warning',
-      description: `Word count is ${wordCount} words (exceeds recommended 2,200 words ceiling).`,
+      description: `Word count is ${wordCount} words (exceeds recommended 1,350 words ceiling). Keep copy crisp and scannable.`,
       count: 1
     });
   }
 
-  // 10. Required sections checklist
+  // 10. Required Core Section Structure Checklist (Assessments removed for now)
   const requiredSections = [
-    { name: 'Breadcrumb line', pattern: /Home\s*>\s*What we do/i },
-    { name: 'Hero Section (with Eyebrow & H1)', pattern: /\*\*Eyebrow:\*\*/i },
-    { name: 'The Problem We Solve', pattern: /problem|challenge|struggle|hurdle/i },
-    { name: 'Outcomes We Deliver', pattern: /outcome|result|value|deliver/i },
-    { name: 'What This Engagement Covers', pattern: /covers|engagement|scope|service/i },
-    { name: 'How We Engage', pattern: /engage|phase|step|methodology/i },
-    { name: 'What You Receive (Deliverables)', pattern: /receive|deliverable|artifact|document/i },
-    { name: 'Platforms and Technologies', pattern: /platform|technolog|stack|azure|microsoft/i },
-    { name: 'What to Look For in a Partner', pattern: /look for in a partner|partner criteria|evaluation/i },
-    { name: 'Customer Proof', pattern: /proof|case study|success story|customer/i },
-    { name: 'The Assessment', pattern: /assessment|review|workshop|audit/i },
-    { name: 'Frequently Asked Questions (FAQ)', pattern: /faq|frequently asked|question/i },
-    { name: 'Related Solutions', pattern: /related solution|sibling|explore/i },
-    { name: 'Call to Action (CTA)', pattern: />\s*\*\*CTA/i }
+    { name: '1. Business Challenges', pattern: /1\.\s*H2:|business\s*challenges|obstacles/i },
+    { name: '2. Measurable Outcomes', pattern: /2\.\s*H2:|measurable\s*outcomes|outcomes\s*we\s*deliver/i },
+    { name: '3. Scope of Engagement', pattern: /3\.\s*H2:|engagement\s*cover|what\s*does\s*the/i },
+    { name: '4. Delivery Framework & Phases', pattern: /4\.\s*H2:|how\s*does\s*embee.*deliver|delivery\s*phases|\[Phase\s*1/i },
+    { name: '5. Deliverables (Documents & Built Assets)', pattern: /5\.\s*H2:|deliverables.*receive|strategic\s*and\s*governance/i },
+    { name: '6. Partner Evaluation Table', pattern: /6\.\s*H2:|choose\s*the\s*right.*partner|evaluation/i },
+    { name: '7. Frequently Asked Questions', pattern: /(?:7|8)\.\s*H2:|frequently\s*asked\s*questions|faq/i },
+    { name: '8. Related Solutions in Portfolio', pattern: /(?:8|9)\.\s*H2:|related\s*solutions/i },
+    { name: '9. Closing Section & Proof', pattern: /(?:9|10)\.\s*H2:|secure\s*your.*today|customer\s*logos/i }
   ];
 
   const sectionChecklist = requiredSections.map(s => ({
@@ -207,9 +191,9 @@ export function auditLandingPageCopy(text: string): AuditReport {
   const missingSections = sectionChecklist.filter(s => !s.found);
   if (missingSections.length > 0) {
     violations.push({
-      rule: 'Approved Section Structure',
-      severity: missingSections.length > 4 ? 'error' : 'warning',
-      description: `Missing or unrecognized section structure: ${missingSections.map(s => s.name).join(', ')}.`,
+      rule: 'Core Section Page Structure',
+      severity: missingSections.length > 3 ? 'error' : 'warning',
+      description: `Missing or unrecognized sections: ${missingSections.map(s => s.name).join(', ')}.`,
       count: missingSections.length
     });
   }
@@ -230,7 +214,7 @@ export function auditLandingPageCopy(text: string): AuditReport {
     score,
     wordCount,
     h1Count,
-    h1Text: h1Matches[0]?.replace(/^#\s+/, ''),
+    h1Text: h1Matches[0]?.replace(/^(?:#\s+|H1\.\s+)/, ''),
     violations,
     sectionChecklist,
     stats: {
@@ -251,9 +235,6 @@ export function autoFixBrandIssues(text: string): string {
   cleaned = cleaned.replace(/[\u2014—]/g, ': ');
   cleaned = cleaned.replace(/[\u2013–]/g, ', ');
 
-  // Fix connector hyphens
-  cleaned = cleaned.replace(/\s+-\s+/g, ': ');
-
   // Fix standalone "Embee" -> "Embee Software" (except if already followed by Software)
   cleaned = cleaned.replace(/\bEmbee\b(?!\s+Software)/g, 'Embee Software');
 
@@ -268,8 +249,8 @@ export function autoFixBrandIssues(text: string): string {
   cleaned = cleaned.replace(/\borganizations\b/gi, 'organisations');
   cleaned = cleaned.replace(/\bcenter\b/gi, 'centre');
 
-  // Fix since 19xx -> 35+ years of experience
-  cleaned = cleaned.replace(/since\s+19\d\d/gi, 'with 35+ years of experience');
+  // Fix since 19xx -> 40+ years of experience
+  cleaned = cleaned.replace(/since\s+19\d\d/gi, 'with 40+ years of experience');
 
   return cleaned;
 }

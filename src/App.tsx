@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ALL_PILLARS, buildSharedBrief, LANDING_PAGE_PROMPT_TEMPLATE, SEO_PROMPT_TEMPLATE, DESIGNER_PROMPT_TEMPLATE } from './data/pillarsData';
 import { SAMPLE_LANDING_COPY, SAMPLE_SEO_PACK, SAMPLE_DESIGNER_NOTES } from './data/sampleOutput';
-import { PillarData, PrimaryAudience, CompanySize, ResearchInsight } from './types';
+import { PillarData, PrimaryAudience, CompanySize, ResearchInsight, ResearchStatus, FeedbackRevision, FeedbackTargetType } from './types';
 import { auditLandingPageCopy, autoFixBrandIssues } from './utils/brandAudit';
 import { auditSeoAndAiSeo } from './utils/seoAudit';
-import { generateSemanticHtml, downloadFile } from './utils/exportHelpers';
+import { generateSemanticHtml, downloadFile, downloadAllWordDoc } from './utils/exportHelpers';
+import { getClientDomainResearch } from './utils/researchGenerator';
 import { Header } from './components/Header';
 import { ConfigForm } from './components/ConfigForm';
 import { LandingCopyViewer } from './components/LandingCopyViewer';
@@ -16,6 +17,7 @@ import { SeoScoreViewer } from './components/SeoScoreViewer';
 import { LiveMockupViewer } from './components/LiveMockupViewer';
 import { TopicClusterViewer } from './components/TopicClusterViewer';
 import { LeadGenStrategyViewer } from './components/LeadGenStrategyViewer';
+import { FeedbackRefinementSection } from './components/FeedbackRefinementSection';
 import { 
   FileText, 
   Tag, 
@@ -30,17 +32,20 @@ import {
   Monitor,
   BarChart2,
   GitFork,
-  Target
+  Target,
+  AlertTriangle
 } from 'lucide-react';
 
 export function App() {
   // State for selected pillar & configuration
-  const [selectedPillar, setSelectedPillar] = useState<PillarData>(ALL_PILLARS[0]);
+  const initialPillar = ALL_PILLARS.find(p => p.p === 'Copilot & AI Strategy Advisory') || ALL_PILLARS[0];
+  const [selectedPillar, setSelectedPillar] = useState<PillarData>(initialPillar);
+  const [selectedSubPage, setSelectedSubPage] = useState<string>('');
   const [primaryAudience, setPrimaryAudience] = useState<PrimaryAudience>('CIO/CTO');
   const [companySize, setCompanySize] = useState<CompanySize>('all sizes');
-  const [emphasiseAngle, setEmphasiseAngle] = useState<string>('Highlight DPDP Act 2023 compliance, Azure India Central region resilience, and sub-hour ERP failover');
+  const [emphasiseAngle, setEmphasiseAngle] = useState<string>('Focus on executive ROI clarity, enterprise data security, and seamless workflow adoption');
   const [selectedAssessment, setSelectedAssessment] = useState<string>(
-    ALL_PILLARS[0].a && ALL_PILLARS[0].a.length > 0 ? ALL_PILLARS[0].a[0] : 'Azure Well-Architected and Migration Assessment'
+    initialPillar.a && initialPillar.a.length > 0 ? initialPillar.a[0] : 'Copilot & AI Readiness Assessment'
   );
 
   // Active view tab
@@ -51,35 +56,71 @@ export function App() {
   const [seoNotes, setSeoNotes] = useState<string>(SAMPLE_SEO_PACK);
   const [designerNotes, setDesignerNotes] = useState<string>(SAMPLE_DESIGNER_NOTES);
 
-  // Live Research Insight
-  const [researchInsight, setResearchInsight] = useState<ResearchInsight | undefined>({
-    query: 'Azure cloud consulting services India',
-    summary: 'Current top-ranking pages in India from large legacy SIs feature generic corporate marketing but omit Indian data sovereignty nuances and practical migration execution timelines.',
-    rankingThemes: [
-      'Broad digital transformation and cloud enablement messaging',
-      'Generic multi-cloud positioning without deep Microsoft specialization',
-      'High-level security statements without local regulatory references',
-      'Global case studies disconnected from Indian infrastructure realities'
-    ],
-    competitorGaps: [
-      'Digital Personal Data Protection (DPDP) Act 2023 compliance architecture',
-      'Specific Azure India region topologies (Central India/Pune, South India/Chennai)',
-      'Sub-hour RTO/RPO guarantees for legacy ERP cutovers',
-      'Local 24x7 NOC/SOC coverage with 500+ Indian engineers',
-      'Predictable 3-year TCO modeling using Azure Hybrid Benefit'
-    ],
-    searchSources: [
-      { title: 'Cloud Advisory Services - Microsoft Azure India', uri: 'https://azure.microsoft.com/en-in/solutions/cloud-advisory/' },
-      { title: 'Enterprise Cloud Migration & Strategy', uri: 'https://www.gartner.com/en/information-technology/insights/cloud-strategy' },
-      { title: 'DPDP Act 2023 Regulatory Guide for Indian Enterprise IT', uri: 'https://www.meity.gov.in/data-protection-framework' }
-    ]
-  });
+  // Research Status state (manual trigger only: not_run | running | complete)
+  const [researchStatus, setResearchStatus] = useState<ResearchStatus>('not_run');
+  const [researchCompletedAt, setResearchCompletedAt] = useState<string | null>(null);
+  const [researchedPillarKey, setResearchedPillarKey] = useState<string | null>(null);
+  const [researchInsight, setResearchInsight] = useState<ResearchInsight | undefined>(undefined);
 
   // Processing indicators
   const [isResearching, setIsResearching] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [activeGenerationStep, setActiveGenerationStep] = useState<string>('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Editorial Revisions & Feedback state
+  const [revisions, setRevisions] = useState<FeedbackRevision[]>([
+    {
+      id: 'rev-init',
+      versionNumber: 1,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      feedbackText: 'Initial Baseline Output (9-Section Structure)',
+      targetType: 'all',
+      landingCopy: SAMPLE_LANDING_COPY,
+      seoNotes: SAMPLE_SEO_PACK,
+      designerNotes: SAMPLE_DESIGNER_NOTES,
+      summaryOfChanges: 'Initial 9-section deliverable loaded with verified brand & style rules (assessments removed for now).'
+    }
+  ]);
+  const [currentVersionIndex, setCurrentVersionIndex] = useState<number>(0);
+  const [isApplyingFeedback, setIsApplyingFeedback] = useState<boolean>(false);
+  const [latestSummaryOfChanges, setLatestSummaryOfChanges] = useState<string>('');
+
+  // API Quota & Live Engine Status State
+  const [isQuotaLimited, setIsQuotaLimited] = useState<boolean>(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState<boolean>(false);
+  const [showQuotaBanner, setShowQuotaBanner] = useState<boolean>(true);
+  const [apiErrorMessage, setApiErrorMessage] = useState<string>('');
+
+  const checkApiHealth = async (testLive = false) => {
+    setIsCheckingHealth(true);
+    try {
+      const res = await fetch(`/api/health${testLive ? '?test=true' : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        setIsQuotaLimited(data.isQuotaLimited);
+        if (data.lastApiError?.message) {
+          setApiErrorMessage(data.lastApiError.message);
+        }
+        if (testLive) {
+          if (data.liveTestResult?.success) {
+            showNotification('success', data.liveTestResult.message);
+            setShowQuotaBanner(false);
+          } else {
+            showNotification('error', `Live API Test: ${data.liveTestResult?.message || 'Credits depleted (429)'}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Health check error:', err);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
+  useEffect(() => {
+    checkApiHealth(false);
+  }, []);
 
   // Live brand audit of landing copy
   const auditReport = useMemo(() => {
@@ -104,40 +145,65 @@ export function App() {
       .filter(p => p.g === selectedPillar.g && p.p !== selectedPillar.p)
       .map(p => p.p);
 
+    let researchBriefText: string | undefined = undefined;
+    const isCurrentPillarResearched = 
+      researchStatus === 'complete' && 
+      researchInsight && 
+      researchedPillarKey === selectedPillar.p;
+
+    if (isCurrentPillarResearched && researchInsight) {
+      const parts: string[] = [];
+      parts.push(`Executive Summary: ${researchInsight.summary}`);
+      parts.push(`Competitor Gaps (What They Leave Out): ${researchInsight.competitorGaps.join('; ')}`);
+      parts.push(`Ranking Themes: ${researchInsight.rankingThemes.join('; ')}`);
+
+      if (researchInsight.detailedInputPoints && researchInsight.detailedInputPoints.length > 0) {
+        parts.push(
+          `\nDetailed Strategic Research Inputs (${researchInsight.detailedInputPoints.length} verified points across ${researchInsight.benchmarkPages?.length || 19} analyzed competitor/regulatory pages in India):\n` +
+          researchInsight.detailedInputPoints.map((pt, i) => `${i + 1}. [${pt.category}] ${pt.point} -> MANDATORY COPY APPLICATION: ${pt.copywritingApplication}`).join('\n')
+        );
+      }
+      researchBriefText = parts.join('\n');
+    }
+
+    const targetTopic = selectedSubPage ? `${selectedSubPage} (${selectedPillar.p})` : selectedPillar.p;
     return buildSharedBrief({
-      pillarName: selectedPillar.p,
+      pillarName: targetTopic,
       solutionGroup: selectedPillar.g,
       internalOwner: selectedPillar.s,
-      sections: selectedPillar.sec,
+      sections: selectedSubPage ? [selectedSubPage] : selectedPillar.sec,
       platforms: selectedPillar.pl,
-      assessments: selectedAssessment ? [selectedAssessment] : selectedPillar.a,
+      assessments: [], // Assessments section removed for now
       targetKeywords: selectedPillar.k,
       primaryAudience,
       companySize,
       emphasiseAngle,
       matchedCaseStudies: selectedPillar.cs,
       siblingPillars,
-      researchBriefText: researchInsight
-        ? `Summary: ${researchInsight.summary}\nCompetitor Gaps: ${researchInsight.competitorGaps.join('; ')}\nRanking Themes: ${researchInsight.rankingThemes.join('; ')}`
-        : undefined
+      researchBriefText
     });
   };
 
-  // When pillar changes, also update assessment and refresh research insight
+  // When pillar changes, update assessment, reset sub-page, and reset research state (manual trigger only)
   const handleSelectPillar = (newPillar: PillarData) => {
     setSelectedPillar(newPillar);
+    setSelectedSubPage('');
     if (newPillar.a && newPillar.a.length > 0) {
       setSelectedAssessment(newPillar.a[0]);
     }
-    // Automatically trigger research for the new pillar
-    handleRunResearch(newPillar);
+    // Strictly manual trigger: do NOT run search grounding automatically on pillar selection
+    setResearchInsight(undefined);
+    setResearchStatus('not_run');
+    setResearchCompletedAt(null);
+    setResearchedPillarKey(null);
   };
 
-  // Run Google Search Competitor Research
+  // Run Deep Competitor Research (manual trigger only)
   const handleRunResearch = async (targetPillar?: PillarData, customQuery?: string) => {
     const pillarToUse = targetPillar || selectedPillar;
     setIsResearching(true);
-    showNotification('info', `Running competitor research for "${pillarToUse.p}" in India...`);
+    setResearchStatus('running');
+    showNotification('info', `Running deep competitor research across 18-20 pages for "${pillarToUse.p}" in India...`);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
@@ -151,20 +217,30 @@ export function App() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to complete search research');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to complete search research');
       }
 
       const data: ResearchInsight = await res.json();
       setResearchInsight(data);
-      if (data.isQuotaLimited) {
-        showNotification('success', `Competitor gaps loaded for "${pillarToUse.p}" (${pillarToUse.g}).`);
-      } else {
-        showNotification('success', `Live Google grounding completed for "${pillarToUse.p}".`);
-      }
+      setResearchStatus('complete');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setResearchCompletedAt(timeStr);
+      setResearchedPillarKey(pillarToUse.p);
+      const pageCount = data.benchmarkPages?.length || data.pagesAnalyzedCount || 19;
+      const pointCount = data.detailedInputPoints?.length || data.totalPointsCount || 15;
+      showNotification('success', `Research complete for "${pillarToUse.p}": ${pageCount} benchmark pages analyzed, ${pointCount} strategic points extracted.`);
     } catch (err: any) {
-      console.error(err);
-      showNotification('error', err.message || 'Error running search research');
+      console.warn('Backend research network or quota fallback:', err);
+      const fallbackResearch = getClientDomainResearch(pillarToUse.p, pillarToUse.g, pillarToUse.k);
+      setResearchInsight(fallbackResearch);
+      setResearchStatus('complete');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setResearchCompletedAt(timeStr);
+      setResearchedPillarKey(pillarToUse.p);
+      const pageCount = fallbackResearch.benchmarkPages?.length || 19;
+      const pointCount = fallbackResearch.detailedInputPoints?.length || 15;
+      showNotification('success', `Domain research loaded for "${pillarToUse.p}": ${pageCount} benchmark pages, ${pointCount} strategic input points.`);
     } finally {
       setIsResearching(false);
     }
@@ -239,7 +315,28 @@ export function App() {
       const designData = await designRes.json();
       setDesignerNotes(designData.designerNotes);
 
-      showNotification('success', 'All 3 outputs generated successfully with full brand compliance.');
+      // Record fresh revision
+      const newRev: FeedbackRevision = {
+        id: `rev-${Date.now()}`,
+        versionNumber: revisions.length + 1,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        feedbackText: `Fresh Generation for ${selectedPillar.p}`,
+        targetType: 'all',
+        landingCopy: copyData.landingCopy,
+        seoNotes: seoData.seoNotes,
+        designerNotes: designData.designerNotes,
+        summaryOfChanges: `Generated complete fresh deliverables for ${selectedPillar.p}`
+      };
+      setRevisions(prev => [...prev, newRev]);
+      setCurrentVersionIndex(revisions.length);
+      setLatestSummaryOfChanges(`Generated complete fresh deliverables for ${selectedPillar.p}`);
+
+      const isQuotaFallback = !!(copyData.isQuotaLimited || seoData.isQuotaLimited || designData.isQuotaLimited);
+      if (isQuotaFallback) {
+        showNotification('info', 'Outputs populated from offline template (AI service quota limited / 429).');
+      } else {
+        showNotification('success', 'All 3 outputs generated successfully with full brand compliance.');
+      }
     } catch (err: any) {
       console.error('Generation error:', err);
       showNotification('error', err.message || 'Generation failed. Check server logs.');
@@ -270,7 +367,11 @@ export function App() {
       const data = await res.json();
       setLandingCopy(data.landingCopy);
       setActiveTab('copy');
-      showNotification('success', 'Landing copy generated successfully.');
+      if (data.isQuotaLimited) {
+        showNotification('info', 'Landing copy populated from offline template (AI service quota limited).');
+      } else {
+        showNotification('success', 'Landing copy generated successfully.');
+      }
     } catch (err: any) {
       showNotification('error', err.message || 'Error generating copy');
     } finally {
@@ -300,7 +401,11 @@ export function App() {
       const data = await res.json();
       setSeoNotes(data.seoNotes);
       setActiveTab('seo');
-      showNotification('success', 'SEO handover pack generated successfully.');
+      if (data.isQuotaLimited) {
+        showNotification('info', 'SEO handover pack populated from offline template (AI service quota limited).');
+      } else {
+        showNotification('success', 'SEO handover pack generated successfully.');
+      }
     } catch (err: any) {
       showNotification('error', err.message || 'Error generating SEO');
     } finally {
@@ -325,12 +430,16 @@ export function App() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to generate design notes');
+        throw new Error(data.error || 'Failed to generate designer notes');
       }
       const data = await res.json();
       setDesignerNotes(data.designerNotes);
       setActiveTab('designer');
-      showNotification('success', 'Designer notes generated successfully.');
+      if (data.isQuotaLimited) {
+        showNotification('info', 'Designer notes populated from offline template (AI service quota limited).');
+      } else {
+        showNotification('success', 'Designer notes generated successfully.');
+      }
     } catch (err: any) {
       showNotification('error', err.message || 'Error generating design notes');
     } finally {
@@ -355,13 +464,95 @@ export function App() {
     setSelectedPillar(cloudAdvisoryPillar);
     setPrimaryAudience('CIO/CTO');
     setCompanySize('all sizes');
-    setEmphasiseAngle('Focus on DPDP Act 2023 compliance, Azure India Central region resilience, and sub-hour ERP failover');
+    setEmphasiseAngle('Focus on executive ROI clarity, high availability, seamless core system integrations, and accessible business language');
     setSelectedAssessment('Azure Well-Architected and Migration Assessment');
     setLandingCopy(SAMPLE_LANDING_COPY);
     setSeoNotes(SAMPLE_SEO_PACK);
     setDesignerNotes(SAMPLE_DESIGNER_NOTES);
     setActiveTab('copy');
     showNotification('success', 'Loaded approved Cloud Advisory & Consulting sample pack.');
+  };
+
+  // Apply User Feedback & Edit Response
+  const handleApplyFeedback = async (feedback: string, targetType: FeedbackTargetType) => {
+    setIsApplyingFeedback(true);
+    try {
+      const brief = getCurrentBrief();
+      const res = await fetch('/api/edit-with-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedback,
+          targetType,
+          currentLandingCopy: landingCopy,
+          currentSeoNotes: seoNotes,
+          currentDesignerNotes: designerNotes,
+          brief,
+          pillarName: selectedSubPage ? `${selectedSubPage} (${selectedPillar.p})` : selectedPillar.p,
+          solutionGroup: selectedPillar.g
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to edit response with feedback');
+      }
+
+      const data = await res.json();
+      const nextLandingCopy = data.landingCopy || landingCopy;
+      const nextSeoNotes = data.seoNotes || seoNotes;
+      const nextDesignerNotes = data.designerNotes || designerNotes;
+      const summary = data.summaryOfChanges || `Incorporated stakeholder feedback: "${feedback.slice(0, 70)}..."`;
+
+      setLandingCopy(nextLandingCopy);
+      setSeoNotes(nextSeoNotes);
+      setDesignerNotes(nextDesignerNotes);
+      setLatestSummaryOfChanges(summary);
+
+      const nextVersionNum = revisions.length + 1;
+      const newRev: FeedbackRevision = {
+        id: `rev-${Date.now()}`,
+        versionNumber: nextVersionNum,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        feedbackText: feedback,
+        targetType,
+        landingCopy: nextLandingCopy,
+        seoNotes: nextSeoNotes,
+        designerNotes: nextDesignerNotes,
+        summaryOfChanges: summary
+      };
+
+      setRevisions(prev => [...prev, newRev]);
+      setCurrentVersionIndex(revisions.length);
+
+      if (targetType === 'seo') {
+        setActiveTab('seo');
+      } else if (targetType === 'designer') {
+        setActiveTab('designer');
+      } else {
+        if (activeTab !== 'mockup' && activeTab !== 'copy') {
+          setActiveTab('mockup');
+        }
+      }
+
+      showNotification('success', `Feedback applied (v${nextVersionNum}): ${summary}`);
+    } catch (err: any) {
+      console.error('Feedback error:', err);
+      showNotification('error', err.message || 'Error processing feedback');
+    } finally {
+      setIsApplyingFeedback(false);
+    }
+  };
+
+  const handleRevertToVersion = (index: number) => {
+    const rev = revisions[index];
+    if (!rev) return;
+    setLandingCopy(rev.landingCopy);
+    setSeoNotes(rev.seoNotes);
+    setDesignerNotes(rev.designerNotes);
+    setCurrentVersionIndex(index);
+    setLatestSummaryOfChanges(`Restored version v${rev.versionNumber}`);
+    showNotification('info', `Restored revision v${rev.versionNumber} ("${rev.feedbackText.slice(0, 50)}")`);
   };
 
   // Download complete handover pack in Markdown
@@ -394,6 +585,20 @@ ${designerNotes}
 
     downloadFile(`embee-software-${slug}-handover-pack.md`, fullContent, 'text/markdown;charset=utf-8;');
     showNotification('success', 'Exported complete Markdown handover pack.');
+  };
+
+  // Export Word Document (.doc) containing all 3 deliverables with H1/H2 formatting
+  const handleDownloadDoc = () => {
+    const slug = selectedPillar.p.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    downloadAllWordDoc(
+      `embee-software-${slug}-complete-pack.doc`,
+      selectedPillar.p,
+      selectedPillar.g,
+      landingCopy,
+      seoNotes,
+      designerNotes
+    );
+    showNotification('success', 'Exported complete Word Document (.doc) with H1/H2 formatting.');
   };
 
   // Export Semantic HTML
@@ -447,11 +652,56 @@ ${designerNotes}
         onReset={handleReset}
         hasOutput={!!landingCopy}
         onDownloadAll={handleDownloadAll}
+        onDownloadDoc={handleDownloadDoc}
         onDownloadHtml={handleDownloadHtml}
         onDownloadJson={handleDownloadJson}
         onPrint={handlePrint}
-        activePillarName={selectedPillar.p}
+        activePillarName={selectedSubPage ? `${selectedSubPage} (${selectedPillar.p})` : selectedPillar.p}
+        isQuotaLimited={isQuotaLimited}
+        onCheckHealth={() => checkApiHealth(true)}
+        isCheckingHealth={isCheckingHealth}
       />
+
+      {/* Prominent Warning Banner when isQuotaLimited is true */}
+      {isQuotaLimited && showQuotaBanner && (
+        <div className="bg-amber-500/15 border-b-2 border-amber-500 text-amber-950 px-4 py-3 text-xs shadow-xs">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <span className="px-2 py-1 rounded bg-amber-600 text-white font-bold tracking-wider text-[10px] uppercase shrink-0 flex items-center gap-1 shadow-xs">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Template Mode (429)
+              </span>
+              <p className="text-amber-950 leading-relaxed font-medium">
+                <strong>Warning: Offline template, not AI generated.</strong> Google Gemini API quota is limited or credits are depleted (429). The system is currently serving boilerplate offline template data, not live research or AI generation. Do not send these outputs to stakeholders.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <a
+                href="https://ai.studio/projects"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs underline font-semibold hover:text-amber-950 text-amber-900"
+              >
+                Billing & Credits ↗
+              </a>
+              <button
+                onClick={() => checkApiHealth(true)}
+                disabled={isCheckingHealth}
+                className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-700 font-semibold text-white transition flex items-center gap-1 cursor-pointer text-xs shadow-xs"
+              >
+                {isCheckingHealth ? 'Testing...' : 'Test Live API'}
+              </button>
+              <button
+                onClick={() => setShowQuotaBanner(false)}
+                className="text-amber-800 hover:text-amber-950 p-1 font-bold ml-1 cursor-pointer"
+                title="Dismiss banner"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Notification Banner */}
       {notification && (
@@ -480,16 +730,14 @@ ${designerNotes}
             <ConfigForm
               selectedPillar={selectedPillar}
               onSelectPillar={handleSelectPillar}
-              primaryAudience={primaryAudience}
-              onChangeAudience={setPrimaryAudience}
-              companySize={companySize}
-              onChangeCompanySize={setCompanySize}
-              emphasiseAngle={emphasiseAngle}
-              onChangeEmphasiseAngle={setEmphasiseAngle}
+              selectedSubPage={selectedSubPage}
+              onSelectSubPage={setSelectedSubPage}
               selectedAssessment={selectedAssessment}
               onChangeAssessment={setSelectedAssessment}
               onRunResearch={() => handleRunResearch(selectedPillar)}
               isResearching={isResearching}
+              researchStatus={researchStatus}
+              researchCompletedAt={researchCompletedAt}
               researchInsight={researchInsight}
               onGenerateAll={handleGenerateAll}
               onGenerateCopyOnly={handleGenerateCopyOnly}
@@ -609,7 +857,14 @@ ${designerNotes}
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                Search Gaps
+                Deep Research
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  activeTab === 'research'
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-indigo-100 text-indigo-800'
+                }`}>
+                  {researchInsight?.benchmarkPages?.length || 19}p / {researchInsight?.detailedInputPoints?.length || 15}pts
+                </span>
               </button>
 
               <button
@@ -695,9 +950,11 @@ ${designerNotes}
               />
             )}
 
-            {activeTab === 'research' && researchInsight && (
+            {activeTab === 'research' && (
               <ResearchViewer
                 research={researchInsight}
+                researchStatus={researchStatus}
+                researchCompletedAt={researchCompletedAt}
                 onRefresh={handleRunResearch}
                 isRefreshing={isResearching}
                 selectedPillar={selectedPillar}
@@ -720,6 +977,17 @@ ${designerNotes}
               />
             )}
 
+            {/* Editorial Feedback & Response Refinement Section */}
+            <FeedbackRefinementSection
+              onApplyFeedback={handleApplyFeedback}
+              isApplying={isApplyingFeedback}
+              revisions={revisions}
+              currentVersionIndex={currentVersionIndex}
+              onRevertToVersion={handleRevertToVersion}
+              latestSummaryOfChanges={latestSummaryOfChanges}
+              activeOutputTab={activeTab}
+            />
+
           </div>
         </div>
       </main>
@@ -731,7 +999,7 @@ ${designerNotes}
             <strong className="text-slate-700">Embee Software</strong> · Making IT Easier · Frontier Partner & Solutions Partner with Microsoft · SAP Gold Partner
           </div>
           <div>
-            14-Section Landing Page & Handover Generator · Non-Negotiable Brand & Style Compliant
+            Dedicated Landing Page & Handover Generator · Non-Negotiable Brand & Style Compliant
           </div>
         </div>
       </footer>

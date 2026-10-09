@@ -18,10 +18,14 @@ interface HeaderProps {
   onReset: () => void;
   hasOutput: boolean;
   onDownloadAll: () => void;
+  onDownloadDoc?: () => void;
   onDownloadHtml: () => void;
   onDownloadJson: () => void;
   onPrint: () => void;
   activePillarName: string;
+  isQuotaLimited?: boolean;
+  onCheckHealth?: () => void;
+  isCheckingHealth?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,10 +33,14 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   hasOutput,
   onDownloadAll,
+  onDownloadDoc,
   onDownloadHtml,
   onDownloadJson,
   onPrint,
-  activePillarName
+  activePillarName,
+  isQuotaLimited,
+  onCheckHealth,
+  isCheckingHealth
 }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -72,15 +80,37 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Partner & Credential Badges */}
-          <div className="hidden xl:flex items-center gap-2 text-xs">
+          {/* Partner & Credential Badges & Engine Status */}
+          <div className="hidden lg:flex items-center gap-2 text-xs">
+            {onCheckHealth && (
+              <button
+                onClick={onCheckHealth}
+                disabled={isCheckingHealth}
+                title={isQuotaLimited ? "Google GenAI Prepayment Credits Depleted (429). Operating in Offline Template Mode. Click to re-test live connection." : "Connected to Gemini 3.8 Flash. Click to verify."}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded font-medium border transition cursor-pointer ${
+                  isQuotaLimited
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isQuotaLimited ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                <span>
+                  {isCheckingHealth 
+                    ? 'Testing API...' 
+                    : isQuotaLimited 
+                    ? 'Offline Template (429)' 
+                    : 'Gemini 3.8 Flash (Live)'}
+                </span>
+              </button>
+            )}
+
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700">
               <Award className="w-3.5 h-3.5 text-amber-400" />
               Microsoft Frontier Partner
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700">
               <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-              Microsoft Solutions Partner (17 Specializations)
+              17 Specializations
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -132,6 +162,25 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {showExportMenu && (
                   <div className="absolute right-0 mt-2 w-56 rounded-lg bg-slate-800 border border-slate-700 shadow-xl py-1 z-50 text-xs text-slate-200">
+                    {onDownloadDoc && (
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          onDownloadDoc();
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-2 transition bg-blue-950/40 border-b border-slate-700/60"
+                      >
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        <div>
+                          <div className="font-semibold text-white flex items-center gap-1.5">
+                            Word Document (.doc)
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold">H1/H2s</span>
+                          </div>
+                          <div className="text-[10px] text-slate-300">Formatted for Microsoft Word &amp; Google Docs</div>
+                        </div>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setShowExportMenu(false);
@@ -139,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-2 transition"
                     >
-                      <FileText className="w-4 h-4 text-blue-400" />
+                      <FileText className="w-4 h-4 text-slate-400" />
                       <div>
                         <div className="font-semibold text-white">Full Markdown (.md)</div>
                         <div className="text-[10px] text-slate-400">Copy + SEO + Design notes</div>

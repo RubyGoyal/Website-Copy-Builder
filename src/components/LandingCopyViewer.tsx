@@ -11,9 +11,13 @@ import {
   CheckCircle2, 
   AlertCircle,
   Sparkles,
-  Wand2
+  Wand2,
+  FileCode,
+  MessageSquareQuote,
+  ArrowRight
 } from 'lucide-react';
 import { AuditReport } from '../types';
+import { downloadWordDoc } from '../utils/exportHelpers';
 
 interface LandingCopyViewerProps {
   copy: string;
@@ -50,8 +54,21 @@ export const LandingCopyViewer: React.FC<LandingCopyViewerProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadDoc = () => {
+    const slug = pillarName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    downloadWordDoc(
+      `landing-copy-${slug}.doc`,
+      `${pillarName} - Landing Page Copy`,
+      copy,
+      {
+        pillar: pillarName,
+        type: 'Production Landing Page Copy (~1,800 Words)'
+      }
+    );
+  };
+
   const wordCount = auditReport.wordCount;
-  const isWordCountOptimal = wordCount >= 1400 && wordCount <= 2200;
+  const isWordCountOptimal = wordCount >= 950 && wordCount <= 1450;
 
   return (
     <div className="space-y-4">
@@ -67,7 +84,7 @@ export const LandingCopyViewer: React.FC<LandingCopyViewerProps> = ({
           }`}>
             <FileText className="w-3.5 h-3.5" />
             <span>{wordCount.toLocaleString()} words</span>
-            <span className="text-[10px] font-normal opacity-80">(Target: 1,400 - 2,200)</span>
+            <span className="text-[10px] font-normal opacity-80">(Target: 1,000 - 1,350)</span>
           </div>
 
           {/* Single H1 Check */}
@@ -144,14 +161,25 @@ export const LandingCopyViewer: React.FC<LandingCopyViewerProps> = ({
             {copied ? 'Copied' : 'Copy'}
           </button>
 
-          {/* Download Button */}
-          <button
-            onClick={handleDownload}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-xs transition"
-          >
-            <Download className="w-3.5 h-3.5" />
-            .md
-          </button>
+          {/* Download Buttons: .md and .doc */}
+          <div className="inline-flex rounded-md shadow-xs border border-slate-300 overflow-hidden">
+            <button
+              onClick={handleDownload}
+              title="Download as Markdown (.md)"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-white hover:bg-slate-100 text-slate-800 border-r border-slate-300 transition"
+            >
+              <Download className="w-3.5 h-3.5" />
+              .md
+            </button>
+            <button
+              onClick={handleDownloadDoc}
+              title="Download as Word Document (.doc) with H1/H2 formatting"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 transition"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
+              .doc (Word)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -173,6 +201,25 @@ export const LandingCopyViewer: React.FC<LandingCopyViewerProps> = ({
             />
           </div>
         )}
+        {/* End of Copy Feedback Banner */}
+        <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+              <MessageSquareQuote className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Want to revise or adjust this copy?</h4>
+              <p className="text-[11px] text-slate-500">Provide your editorial feedback in the section below to edit, tighten, or expand any part of this page.</p>
+            </div>
+          </div>
+          <a
+            href="#feedback-refinement-section"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shrink-0 shadow-2xs"
+          >
+            <span>Provide Feedback Below</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </a>
+        </div>
       </div>
     </div>
   );

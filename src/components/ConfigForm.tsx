@@ -1,38 +1,30 @@
 import React, { useState } from 'react';
-import { PillarData, PrimaryAudience, CompanySize, CaseStudy, ResearchInsight } from '../types';
+import { PillarData, ResearchInsight, ResearchStatus } from '../types';
 import { ALL_PILLARS, getSiblingPillars } from '../data/pillarsData';
 import { 
   Search, 
   Globe, 
   Layers, 
-  Users, 
-  Building2, 
-  Crosshair, 
   Sparkles, 
   ChevronDown, 
   ChevronUp, 
   CheckCircle2, 
-  BookOpen, 
-  FileCheck,
+  RefreshCw,
   Zap,
-  ArrowRight,
-  ShieldCheck,
-  Database
+  ArrowRight
 } from 'lucide-react';
 
 interface ConfigFormProps {
   selectedPillar: PillarData;
   onSelectPillar: (pillar: PillarData) => void;
-  primaryAudience: PrimaryAudience;
-  onChangeAudience: (aud: PrimaryAudience) => void;
-  companySize: CompanySize;
-  onChangeCompanySize: (size: CompanySize) => void;
-  emphasiseAngle: string;
-  onChangeEmphasiseAngle: (angle: string) => void;
+  selectedSubPage?: string;
+  onSelectSubPage?: (subPage: string) => void;
   selectedAssessment: string;
   onChangeAssessment: (assessment: string) => void;
   onRunResearch: () => void;
   isResearching: boolean;
+  researchStatus: ResearchStatus;
+  researchCompletedAt?: string | null;
   researchInsight?: ResearchInsight;
   onGenerateAll: () => void;
   onGenerateCopyOnly: () => void;
@@ -45,16 +37,14 @@ interface ConfigFormProps {
 export const ConfigForm: React.FC<ConfigFormProps> = ({
   selectedPillar,
   onSelectPillar,
-  primaryAudience,
-  onChangeAudience,
-  companySize,
-  onChangeCompanySize,
-  emphasiseAngle,
-  onChangeEmphasiseAngle,
+  selectedSubPage = '',
+  onSelectSubPage,
   selectedAssessment,
   onChangeAssessment,
   onRunResearch,
   isResearching,
+  researchStatus,
+  researchCompletedAt,
   researchInsight,
   onGenerateAll,
   onGenerateCopyOnly,
@@ -80,8 +70,6 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
     return matchesGroup && matchesQuery;
   });
 
-  const siblingPillars = getSiblingPillars(selectedPillar.g, selectedPillar.p);
-
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-6">
       {/* Section 1: Pillar Selection */}
@@ -89,7 +77,7 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             <Layers className="w-4 h-4 text-blue-600" />
-            1. Select Solution Pillar (48 Available)
+            1. Select Solution Pillar
           </label>
           <span className="text-xs text-slate-500 font-medium">
             Group: <strong className="text-slate-800">{selectedPillar.g}</strong>
@@ -134,8 +122,7 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
               const found = ALL_PILLARS.find(p => p.g === group && p.p === pillarName);
               if (found) {
                 onSelectPillar(found);
-                // Also default the assessment to the first one available
-                if (found.a && found.a.length > 0) {
+                if (found.a && found.a.length > 0 && onChangeAssessment) {
                   onChangeAssessment(found.a[0]);
                 }
               }
@@ -148,6 +135,50 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Dedicated Target Page Selector (prevents auto-combining sub-sections) */}
+        {selectedPillar.sec && selectedPillar.sec.length > 0 && (
+          <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+            <div className="flex items-center justify-between">
+              <label htmlFor="target-subpage-select" className="font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                <span>Dedicated Page Scope:</span>
+              </label>
+              <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 font-medium">
+                Single Standalone Page
+              </span>
+            </div>
+            <select
+              id="target-subpage-select"
+              value={selectedSubPage}
+              onChange={e => onSelectSubPage && onSelectSubPage(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-md border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">
+                ★ Main Pillar Overview: {selectedPillar.p} (Single Overview Page)
+              </option>
+              {selectedPillar.sec.map((s, idx) => (
+                <option key={idx} value={s}>
+                  📄 Dedicated Sub-Page: {s} (Do not combine)
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500">
+              Generates strictly ONE standalone landing page for this chosen topic instead of combining sub-pages.
+            </p>
+          </div>
+        )}
+
+        {/* Single Page Dedicated Mode Banner */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-200/60 text-xs">
+          <div className="flex items-center gap-2 text-blue-900 font-medium">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            <span>Single Dedicated Page Mode</span>
+          </div>
+          <span className="text-[11px] text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200 font-medium">
+            Prevents auto-combining sub-pages
+          </span>
         </div>
 
         {/* Active Pillar Highlight Card */}
@@ -231,129 +262,55 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
         </div>
       </div>
 
-      {/* Section 2: Audience, Company Size, & Assessment Selection */}
-      <div className="space-y-3 pt-3 border-t border-slate-100">
-        <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-          <Users className="w-4 h-4 text-blue-600" />
-          2. Target Audience & Commercial Scope
-        </label>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Primary Audience */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Primary Decision Maker
-            </label>
-            <select
-              id="aud"
-              value={primaryAudience}
-              onChange={e => onChangeAudience(e.target.value as PrimaryAudience)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="CIO/CTO">CIO/CTO (Focus on risk, timeline, TCO)</option>
-              <option value="CISO">CISO (Focus on threat surface, DPDP compliance)</option>
-              <option value="IT manager">IT manager (Focus on operational stability, 2am fixes)</option>
-              <option value="mixed CxO and IT leadership">Mixed CxO and IT Leadership</option>
-            </select>
-          </div>
-
-          {/* Company Size */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Company Size Segment
-            </label>
-            <select
-              id="seg"
-              value={companySize}
-              onChange={e => onChangeCompanySize(e.target.value as CompanySize)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all sizes">All Sizes (SMB to Large Enterprise)</option>
-              <option value="enterprise">Enterprise</option>
-              <option value="mid-market">Mid-Market</option>
-              <option value="SMB">SMB</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Featured Assessment Selection */}
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Featured Assessment (Primary Conversion Asset)
-          </label>
-          <div className="flex gap-2">
-            <select
-              value={selectedAssessment}
-              onChange={e => onChangeAssessment(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
-            >
-              {selectedPillar.a.map((assessment, idx) => (
-                <option key={idx} value={assessment}>
-                  {assessment}
-                </option>
-              ))}
-              {selectedPillar.a.length === 0 && (
-                <option value="Comprehensive Architecture & Migration Readiness Review">
-                  Comprehensive Architecture & Migration Readiness Review (Proposed)
-                </option>
-              )}
-            </select>
-          </div>
-        </div>
-
-        {/* Specific Angle / Emphasis */}
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Specific Angle or Differentiator to Emphasise (Optional)
-          </label>
-          <input
-            id="ang"
-            type="text"
-            placeholder="e.g. Highlight DPDP Act 2023 compliance, Azure India regions, and sub-hour ERP failover"
-            value={emphasiseAngle}
-            onChange={e => onChangeEmphasiseAngle(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-
-      {/* Section 3: Live Research Step via Gemini Google Search Grounding */}
+      {/* Section 2: Competitor Research (Google Search Grounding) - Manual Trigger Only */}
       <div className="pt-3 border-t border-slate-100 space-y-2.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             <Globe className="w-4 h-4 text-indigo-600" />
-            3. Competitor Research (Google Search Grounding)
+            2. Competitor Research (Search Grounding)
           </label>
-          {researchInsight && (
-            <span className="text-[11px] font-medium text-emerald-600 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Research Active
+
+          {/* Research State: not run, running, or complete with timestamp */}
+          {researchStatus === 'not_run' && (
+            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+              Research: Not run
+            </span>
+          )}
+          {researchStatus === 'running' && (
+            <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1 animate-pulse">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Research: Running...
+            </span>
+          )}
+          {researchStatus === 'complete' && (
+            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Complete {researchCompletedAt ? `(${researchCompletedAt})` : ''}
             </span>
           )}
         </div>
+
         <p className="text-xs text-slate-500">
-          Uses Gemini's native Google Search grounding to inspect live ranking competitor pages in India and pinpoint what they cover versus what they omit.
+          Inspects live ranking competitor pages in India and pinpoints real gaps and customer anxieties without pre-seeded answers.
         </p>
 
+        {/* Single "Run Deep Research" Button */}
         <button
           onClick={onRunResearch}
           disabled={isResearching || isGenerating}
-          id="btn-run-research"
-          className={`w-full py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 border transition ${
+          id="btn-run-deep-research"
+          className={`w-full py-2.5 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 border transition ${
             isResearching
               ? 'bg-indigo-50 border-indigo-200 text-indigo-700 cursor-wait'
-              : 'bg-indigo-50/70 hover:bg-indigo-100/90 text-indigo-700 border-indigo-200 hover:border-indigo-300'
+              : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs border-transparent'
           }`}
         >
           <Globe className={`w-3.5 h-3.5 ${isResearching ? 'animate-spin' : ''}`} />
           {isResearching
             ? 'Grounding Gemini with Google Search in India...'
-            : researchInsight
-            ? 'Re-run Competitor Search Grounding'
-            : 'Run Google Search Competitor Research'}
+            : 'Run Deep Research'}
         </button>
 
-        {/* Small Research Preview if available */}
-        {researchInsight && (
+        {/* Small Research Preview if complete */}
+        {researchStatus === 'complete' && researchInsight && (
           <div className="bg-indigo-50/40 rounded-lg p-3 border border-indigo-100 text-xs space-y-1.5">
             <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
@@ -373,11 +330,11 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
         )}
       </div>
 
-      {/* Section 4: Generation Triggers */}
+      {/* Section 3: Generation Triggers */}
       <div className="pt-4 border-t border-slate-200 space-y-3">
         <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
           <Zap className="w-4 h-4 text-blue-600" />
-          4. Execute 3-Call Generation Pipeline
+          3. Execute 3-Call Generation Pipeline
         </label>
         <p className="text-xs text-slate-500">
           Executes three distinct calls to Gemini so the 1,800-word landing page copy is never squeezed by SEO notes or designer direction.

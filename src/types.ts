@@ -28,6 +28,8 @@ export type CompanySize =
   | 'enterprise'
   | 'all sizes';
 
+export type ResearchStatus = 'not_run' | 'running' | 'complete';
+
 export interface PromptConfig {
   pillarName: string;
   solutionGroup: string;
@@ -36,13 +38,29 @@ export interface PromptConfig {
   platforms: string[];
   assessments: string[];
   targetKeywords: string[];
-  primaryAudience: PrimaryAudience;
-  companySize: CompanySize;
-  emphasiseAngle: string;
+  primaryAudience?: PrimaryAudience;
+  companySize?: CompanySize;
+  emphasiseAngle?: string;
   matchedCaseStudies: CaseStudy[];
   siblingPillars: string[];
   researchBriefText?: string;
   includeSearchGrounding?: boolean;
+}
+
+export interface BenchmarkPage {
+  title: string;
+  uri: string;
+  category: 'competitor' | 'hyperscaler' | 'regulatory' | 'case_study';
+  domain?: string;
+  takeaway: string;
+  rankIndex?: number;
+  isSynthetic?: boolean;
+}
+
+export interface ResearchInsightPoint {
+  category: 'Competitor Blindspot' | 'Buyer Anxiety & Objection' | 'Indian Regulatory Reality' | 'Technical Architecture & SLA' | 'Value Hook';
+  point: string;
+  copywritingApplication: string;
 }
 
 export interface ResearchInsight {
@@ -53,6 +71,13 @@ export interface ResearchInsight {
   searchSources: { title: string; uri: string }[];
   rawText?: string;
   isQuotaLimited?: boolean;
+  researchIsLive?: boolean;
+  engineType?: string;
+  quotaReason?: string;
+  benchmarkPages?: BenchmarkPage[];
+  detailedInputPoints?: ResearchInsightPoint[];
+  pagesAnalyzedCount?: number;
+  totalPointsCount?: number;
 }
 
 export interface RuleViolation {
@@ -163,5 +188,19 @@ export interface LeadGenStrategyData {
     bodyMarkdown: string;
   };
   salesDiscoveryQuestions: string[];
+}
+
+export type FeedbackTargetType = 'copy' | 'seo' | 'designer' | 'all';
+
+export interface FeedbackRevision {
+  id: string;
+  versionNumber: number;
+  timestamp: string;
+  feedbackText: string;
+  targetType: FeedbackTargetType;
+  landingCopy: string;
+  seoNotes: string;
+  designerNotes: string;
+  summaryOfChanges: string;
 }
 

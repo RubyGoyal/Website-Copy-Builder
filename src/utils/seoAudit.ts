@@ -200,27 +200,26 @@ export function auditSeoAndAiSeo(
     recommendation: !hasDirectAnswer ? 'Craft the first paragraph as a crisp 2-sentence direct answer defining the exact scope and outcome.' : undefined
   });
 
-  // Sovereign Indian Data Residency & Compliance Entities
+  // Enterprise Data Governance & Regulatory / Security Entities
   const lowerText = text.toLowerCase();
-  const hasDpdp = lowerText.includes('dpdp') || lowerText.includes('digital personal data protection');
-  const hasRegions = lowerText.includes('central india') || lowerText.includes('south india') || lowerText.includes('west india') || lowerText.includes('pune') || lowerText.includes('chennai') || lowerText.includes('mumbai');
-  const hasRegulators = lowerText.includes('cert-in') || lowerText.includes('rbi') || lowerText.includes('sebi') || lowerText.includes('meity');
-  const entityCount = (hasDpdp ? 1 : 0) + (hasRegions ? 1 : 0) + (hasRegulators ? 1 : 0);
+  const hasCompliance = lowerText.includes('dpdp') || lowerText.includes('compliance') || lowerText.includes('governance') || lowerText.includes('regulatory') || lowerText.includes('cert-in') || lowerText.includes('security framework');
+  const hasSecurity = lowerText.includes('data security') || lowerText.includes('data residency') || lowerText.includes('encryption') || lowerText.includes('access control') || lowerText.includes('sovereignty') || lowerText.includes('zero trust');
+  const entityCount = (hasCompliance ? 1 : 0) + (hasSecurity ? 1 : 0);
 
   checks.push({
-    name: 'Indian Sovereign Entities (DPDP Act, Azure Regions, Regulators)',
+    name: 'Enterprise Security, Governance & Regulatory Alignment',
     category: 'entities',
     status: entityCount >= 2 ? 'pass' : (entityCount === 1 ? 'warning' : 'fail'),
-    score: entityCount >= 2 ? 10 : (entityCount === 1 ? 5 : 0),
+    score: entityCount >= 2 ? 10 : (entityCount === 1 ? 6 : 2),
     maxScore: 10,
-    detail: `Entities detected: DPDP Act 2023 (${hasDpdp ? '✓' : '✗'}), Sovereign Azure Regions (${hasRegions ? '✓' : '✗'}), Regulatory Bodies (${hasRegulators ? '✓' : '✗'}).`,
-    recommendation: entityCount < 2 ? 'Incorporate specific Indian data residency (Central/South India Azure regions) and DPDP Act 2023 compliance hooks.' : undefined
+    detail: `Governance entities: Regulatory/Compliance Alignment (${hasCompliance ? '✓' : '✗'}), Data Security & Governance (${hasSecurity ? '✓' : '✗'}).`,
+    recommendation: entityCount < 2 ? 'Reinforce enterprise security controls, data governance boundaries, and regulatory safeguards in natural, readable terms.' : undefined
   });
 
   // Brand Authority & Operational Metric Citations
   const hasBrandFull = (text.match(/Embee Software/g) || []).length;
   const hasEngineers = lowerText.includes('500+') || lowerText.includes('certified engineer');
-  const hasYears = lowerText.includes('35+') || lowerText.includes('35 years');
+  const hasYears = lowerText.includes('40+') || lowerText.includes('40 years') || lowerText.includes('35+') || lowerText.includes('35 years');
   const hasSpecializations = lowerText.includes('specialization') || lowerText.includes('frontier partner') || lowerText.includes('solutions partner');
   const authoritySignals = (hasBrandFull >= 4 ? 1 : 0) + (hasEngineers ? 1 : 0) + (hasYears ? 1 : 0) + (hasSpecializations ? 1 : 0);
 
